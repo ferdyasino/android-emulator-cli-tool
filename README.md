@@ -1,11 +1,13 @@
-# 🛠 Android Emulator CLI Tool
+# 🛠 Android Emulator CLI Tool  
 ![Linux](https://img.shields.io/badge/Linux-Supported-blue)
 ![Bash](https://img.shields.io/badge/Shell-Bash-brightgreen)
 ![Android](https://img.shields.io/badge/Android-Emulator-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 A powerful **terminal-based Android Emulator Manager** for Linux developers.  
-Manage emulators like a pro — launch, clone, reset, and delete — all without Android Studio.
+Manage AVDs like a pro — launch, clone, reset, and delete — all without Android Studio.
+
+👉 **[Skip to Demo Gallery ➡️](#-demo-gallery)**
 
 ---
 
@@ -14,11 +16,11 @@ Manage emulators like a pro — launch, clone, reset, and delete — all without
 | Feature | Description |
 |---------|-------------|
 | ▶️ **Launch Emulator** | Silent launch & return to terminal |
-| 🧬 **Clone Emulator** | Create a new named instance & auto-launch |
-| 🗑 **Delete Clones** | Removes clone safely (auto-kills if running) |
-| 🧼 **Clear & Reboot** | Factory reset any emulator & auto-reboot fresh |
-| 🖥 **AMD/Linux Support** | Built-in Vulkan fix for Debian/Ubuntu |
-| ⚠️ **Running Check** | Warns if emulator already running |
+| 🧬 **Clone Emulator** | Create named emulator copies & auto-launch |
+| 🗑 **Delete Clones** | Safely remove clones (auto-kills if running) |
+| 🧼 **Clear & Reboot** | Factory reset & auto-boot fresh Android |
+| 🖥 **AMD/Linux Support** | Vulkan/Qt fixes for Debian & Ubuntu |
+| ⚠️ **Running Check** | Prevents duplicate emulator launches |
 
 ---
 
@@ -27,27 +29,27 @@ Manage emulators like a pro — launch, clone, reset, and delete — all without
 | Requirement | Details |
 |-------------|---------|
 | OS | Linux (Debian/Ubuntu/Arch tested) |
-| Android SDK | Must be installed (`emulator` in PATH) |
+| Android SDK | Emulator already installed (`emulator` in PATH) |
 | Git & gh | For GitHub integration (optional) |
-| CPU | Virtualization Enabled (KVM/QEMU) |
+| CPU | Virtualization (KVM/QEMU) enabled |
 
 ---
 
 ## 📦 Installation
 
 ```bash
-# Clone or copy the script into a folder
+# Clone or create folder
 mkdir android-emulator-cli-tool
 cd android-emulator-cli-tool
 
-# Create the script file
-nano run_emulator.sh   # paste the script here
+# Create and paste script
+nano run_emulator.sh
 
-# Make it executable
+# Make script executable
 chmod +x run_emulator.sh
 ```
 
-### 🔁 Optional: Create a command alias (`emu`)
+#### 🔁 (Optional) Create Global Command (`emu`)
 ```bash
 echo 'alias emu="~/android-emulator-cli-tool/run_emulator.sh"' >> ~/.bashrc
 source ~/.bashrc
@@ -61,38 +63,33 @@ source ~/.bashrc
 emu
 ```
 
-### 🧾 Menu Options
-
 | Option | Action |
 |--------|--------|
-| 1️⃣ Launch Emulator | Opens selected AVD silently |
-| 2️⃣ Clone Emulator | Name it → auto-launch |
-| 3️⃣ Delete Clone(s) | Removes only non-Pixel AVDs |
+| 1️⃣ Launch Emulator | Opens AVD silently |
+| 2️⃣ Clone Emulator | Name → auto-launch |
+| 3️⃣ Delete Clones | Removes only custom AVDs |
 | 4️⃣ Clear & Reboot | Factory reset + fresh boot |
-| 5️⃣ Exit | Leave tool |
+| 5️⃣ Exit | Quit tool |
 
 ---
 
-## 🎞 Screenshots / Demo
+## 🎬 Demo Gallery
 
-Add your screenshots or GIFs to the `examples/` folder.
+| Launch | Clone | Clear & Reboot | Delete |
+|--------|--------|----------------|--------|
+| ![Launch](examples/launch.gif) | ![Clone](examples/clone.gif) | ![Clear & Reboot](examples/clear&reboot.gif) | ![Delete](examples/delete.gif) |
 
-```bash
-examples/
-├── screenshot.png
-└── demo.gif
-```
-
-_Add a GIF example here for better documentation._
+> Place your GIF files in the `examples/` folder.  
+> Supports PNG, GIF, WebP.
 
 ---
 
 ## 🔮 Future Enhancements
 
 - [ ] ADB Integration (install APK on boot)
-- [ ] Logcat Viewer (real-time debugging)
+- [ ] Logcat Viewer (debug console)
 - [ ] Batch Emulator Testing
-- [ ] Interactive APK deployment
+- [ ] Emulator Profiles / Presets
 
 ---
 
@@ -100,8 +97,10 @@ _Add a GIF example here for better documentation._
 
 Found a bug or want a feature?
 
-👉 Open an issue on GitHub  
-👉 Or contribute via Pull Request
+- 💬 Open an **Issue** on GitHub  
+- 🔧 Submit a **Pull Request**  
+
+Your contribution helps improve this tool!
 
 ---
 
