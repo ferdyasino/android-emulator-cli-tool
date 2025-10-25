@@ -1,6 +1,7 @@
 #!/bin/bash
 # ==============================================
 # Android Emulator CLI Tool – Debian + AMD GPU
+# Version: 2.1
 # Author: Ferdy
 # ==============================================
 
@@ -19,38 +20,39 @@ echo "🎮 Using external GPU device: $DRI_DEVICE"
 wait_for_boot() {
   echo "⌛ Waiting for Android OS to boot..."
   local retries=0
-  local max_retries=60
-  local connected=false
+  local max_retries=30
 
-  # Try to find emulator device first
-  while [ $retries -lt 20 ]; do
-    if adb devices | grep -q "emulator-"; then
-      connected=true
-      break
-    fi
-    ((retries++))
-    sleep 1
-  done
+  # Pick the first online emulator device
+  local device
+  device=$(adb devices | grep -E "emulator-[0-9]+" | grep -v offline | head -n1 | awk '{print $1}')
 
-  if ! $connected; then
-    echo "⚠️ No emulator connected to ADB; continuing anyway."
+  if [ -z "$device" ]; then
+    echo "⚠️ No online emulator found; skipping boot check."
     return 0
   fi
 
-  # Wait for Android system boot flag
-  retries=0
+  echo "📱 Monitoring boot status on $device..."
+
   while [ $retries -lt $max_retries ]; do
     local boot_status
-    boot_status=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+    boot_status=$(adb -s "$device" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+
     if [ "$boot_status" = "1" ]; then
-      echo "✅ Android fully booted."
+      echo "✅ Android OS on $device is fully booted."
       return 0
     fi
+
+    # Show a small progress indicator every 5 seconds
+    if (( retries % 5 == 0 )); then
+      echo "⏳ Waiting... (attempt $retries/$max_retries)"
+    fi
+
     ((retries++))
     sleep 2
   done
 
-  echo "⚠️ Boot check timed out, but emulator is likely ready."
+
+  echo "⚠️ Boot check timed out after $((max_retries * 2))s; emulator likely ready."
   return 0
 }
 
@@ -109,8 +111,8 @@ silent_launch() {
 
   sleep 8
   adb_connect_emulator
-  echo "🔍 Checking ADB devices..."
-  adb devices | grep "emulator" || echo "⚠️ No emulator detected yet."
+  echo "🔍 Checking active emulator connection..."
+  adb devices | grep "emulator-" | grep -v offline || echo "⚠️ No active emulator detected."
 
   wait_for_boot
   echo "✔ Emulator $NAME ready!"
@@ -269,13 +271,13 @@ launch_menu() {
 while true; do
   echo ""
   echo "==============================="
-  echo "   ANDROID EMULATOR TOOL"
+  echo "   ANDROID EMULATOR TOOL (v2.1)"
   echo "==============================="
   echo "1) Launch Emulator"
   echo "2) Clone Emulator (create & launch)"
   echo "3) Delete Clone(s)"
   echo "4) Clear Emulator (Factory Reset + Auto Reboot)"
-  echo "5) Exit"
+  echo "5) Exit" 
   echo ""
   read -p "Choose an option: " OPT
 
