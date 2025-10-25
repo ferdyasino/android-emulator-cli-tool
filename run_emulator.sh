@@ -1,4 +1,8 @@
 #!/bin/bash
+# ==============================================
+# Android Emulator CLI Tool – Debian + AMD GPU
+# Author: Ferdy
+# ==============================================
 
 AVD_PATH="$HOME/.android/avd"
 
@@ -6,9 +10,57 @@ AVD_PATH="$HOME/.android/avd"
 export QT_QPA_PLATFORM=xcb
 export ANDROID_EMULATOR_VULKAN=disabled
 
+# ---- Force external GPU (AMD Radeon RX 550 on /dev/dri/card1) ----
+export DRI_PRIME=1
+export DRI_DEVICE=/dev/dri/card1
+echo "🎮 Using external GPU device: $DRI_DEVICE"
+
+# ---- Helper: Wait for emulator boot ----
+wait_for_boot() {
+  echo "⌛ Waiting for Android OS to boot..."
+  local retries=0
+  local max_retries=60
+  local connected=false
+
+  # Try to find emulator device first
+  while [ $retries -lt 20 ]; do
+    if adb devices | grep -q "emulator-"; then
+      connected=true
+      break
+    fi
+    ((retries++))
+    sleep 1
+  done
+
+  if ! $connected; then
+    echo "⚠️ No emulator connected to ADB; continuing anyway."
+    return 0
+  fi
+
+  # Wait for Android system boot flag
+  retries=0
+  while [ $retries -lt $max_retries ]; do
+    local boot_status
+    boot_status=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+    if [ "$boot_status" = "1" ]; then
+      echo "✅ Android fully booted."
+      return 0
+    fi
+    ((retries++))
+    sleep 2
+  done
+
+  echo "⚠️ Boot check timed out, but emulator is likely ready."
+  return 0
+}
+
 # ---- List AVDs ----
 list_avds() {
   mapfile -t EMULATORS < <(emulator -list-avds | sort -V)
+  if [ ${#EMULATORS[@]} -eq 0 ]; then
+    echo "❌ No AVDs found. Please create one in Android Studio first."
+    exit 1
+  fi
 }
 
 # ---- Detect Clone (non-Pixel) ----
@@ -21,28 +73,61 @@ is_running() {
   pgrep -f "qemu-system-x86_64.*@$1" >/dev/null
 }
 
+# ---- Safe numeric choice validation ----
+validate_choice() {
+  local CHOICE="$1"
+  local MAX="$2"
+  [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "$MAX" ]
+}
+
+# ---- Clean ADB & connect to emulator dynamically ----
+adb_connect_emulator() {
+  adb kill-server >/dev/null 2>&1
+  adb start-server >/dev/null 2>&1
+  sleep 3
+  local port
+  port=$(ps -ef | grep qemu-system-x86_64 | grep -oP '(?<=-ports )\d+,\d+' | head -n1 | cut -d',' -f1)
+  if [ -n "$port" ]; then
+    adb connect "localhost:$port" >/dev/null 2>&1
+    echo "🔗 Connected to emulator port: $port"
+  else
+    echo "⚠️ Could not detect emulator port automatically."
+  fi
+}
+
 # ---- Silent Launch ----
 silent_launch() {
   local NAME="$1"
   if is_running "$NAME"; then
     echo "⚠️ $NAME is already running."
-    exit 0
+    return
   fi
-  echo "🚀 Launching: $NAME in background..."
+
+  echo "🚀 Launching: $NAME (External GPU: RX 550)..."
   nohup emulator @"$NAME" -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
   disown
-  echo "✔ Emulator started. Returning to terminal..."
-  exit 0
+
+  sleep 8
+  adb_connect_emulator
+  echo "🔍 Checking ADB devices..."
+  adb devices | grep "emulator" || echo "⚠️ No emulator detected yet."
+
+  wait_for_boot
+  echo "✔ Emulator $NAME ready!"
 }
 
 # ---- Silent Clone Launch ----
 silent_launch_clone() {
   local NAME="$1"
-  echo "🚀 Launching clone: $NAME in background..."
+  echo "🚀 Launching clone: $NAME (External GPU: RX 550)..."
   nohup emulator @"$NAME" -read-only -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
   disown
-  echo "✔ Clone started. Returning to terminal..."
-  exit 0
+
+  sleep 8
+  adb devices >/dev/null 2>&1
+  adb_connect_emulator
+  wait_for_boot
+  echo "✔ Clone $NAME ready!"
 }
 
 # ---- Clear & Auto Reboot Emulator ----
@@ -54,34 +139,27 @@ clear_and_reboot() {
   local i=1
   for EMU in "${EMULATORS[@]}"; do
     echo "  $i) $EMU"
-    i=$((i+1))
+    ((i++))
   done
-
   echo ""
-  echo "Select emulator to factory reset:"
-  read -r CHOICE
-  local INDEX=$((CHOICE-1))
-  local NAME="${EMULATORS[$INDEX]}"
-
-  if [ -z "$NAME" ]; then
+  read -p "Select emulator to factory reset (1-${#EMULATORS[@]}): " CHOICE
+  if ! validate_choice "$CHOICE" "${#EMULATORS[@]}"; then
     echo "❌ Invalid selection."
     return
   fi
+  local NAME="${EMULATORS[$((CHOICE-1))]}"
 
-  echo "🛑 Stopping running instance of $NAME (if any)..."
+  echo "🛑 Stopping $NAME..."
   pkill -f "qemu-system-x86_64.*@$NAME" >/dev/null 2>&1
 
-  echo "🧼 Wiping user data from $NAME..."
+  echo "🧼 Wiping user data..."
   emulator @"$NAME" -wipe-data -no-snapshot -no-boot-anim -accel on -gpu host >/dev/null 2>&1 &
-
-  sleep 5
-
-  echo "♻️ Rebooting fresh $NAME..."
+  sleep 10
+  echo "♻️ Rebooting..."
   nohup emulator @"$NAME" -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
   disown
-
-  echo "✔ Fresh emulator launched. Returning to terminal..."
-  exit 0
+  adb_connect_emulator
+  wait_for_boot
 }
 
 # ---- Clone Emulator ----
@@ -93,22 +171,18 @@ clone_avd() {
   local i=1
   for EMU in "${EMULATORS[@]}"; do
     echo "  $i) $EMU"
-    i=$((i+1))
+    ((i++))
   done
 
   echo ""
-  echo "Enter number of emulator to clone:"
-  read -r CHOICE
-  local INDEX=$((CHOICE-1))
-  local SOURCE="${EMULATORS[$INDEX]}"
-
-  if [ -z "$SOURCE" ]; then
-    echo "❌ Invalid choice."
+  read -p "Enter number to clone (1-${#EMULATORS[@]}): " CHOICE
+  if ! validate_choice "$CHOICE" "${#EMULATORS[@]}"; then
+    echo "❌ Invalid selection."
     return
   fi
 
-  echo "Enter NEW clone name (no spaces):"
-  read -r NEW_NAME
+  local SOURCE="${EMULATORS[$((CHOICE-1))]}"
+  read -p "Enter new clone name: " NEW_NAME
   [ -z "$NEW_NAME" ] && echo "❌ No name entered." && return
 
   local SRC_AVD="$AVD_PATH/$SOURCE.avd"
@@ -124,8 +198,7 @@ clone_avd() {
   echo "📁 Cloning '$SOURCE' → '$NEW_NAME' ..."
   cp -r "$SRC_AVD" "$NEW_AVD"
   cp "$SRC_INI" "$NEW_INI"
-  sed -i "s|$SOURCE|$NEW_NAME|g" "$NEW_INI" 2>/dev/null
-  sed -i "s|$SOURCE|$NEW_NAME|g" "$NEW_AVD/config.ini" 2>/dev/null
+  sed -i "s|$SOURCE|$NEW_NAME|g" "$NEW_INI" "$NEW_AVD/config.ini" 2>/dev/null
   echo "✅ Clone created: $NEW_NAME"
 
   silent_launch_clone "$NEW_NAME"
@@ -146,31 +219,27 @@ delete_clone() {
   done
 
   if [ ${#deletable[@]} -eq 0 ]; then
-    echo "❌ No clones to delete."
+    echo "❌ No clones available."
     return
   fi
 
   local i=1
   for EMU in "${deletable[@]}"; do
     echo "  $i) $EMU"
-    i=$((i+1))
+    ((i++))
   done
 
-  echo ""
-  echo "Enter number of clone to delete:"
-  read -r CHOICE
-  local INDEX=$((CHOICE-1))
-  local TARGET="${deletable[$INDEX]}"
-
-  if [ -z "$TARGET" ]; then
-    echo "❌ Invalid choice."
+  read -p "Enter number of clone to delete: " CHOICE
+  if ! validate_choice "$CHOICE" "${#deletable[@]}"; then
+    echo "❌ Invalid selection."
     return
   fi
+  local TARGET="${deletable[$((CHOICE-1))]}"
 
-  echo "🛑 Stopping running clone: $TARGET"
+  echo "🛑 Stopping $TARGET..."
   pkill -f "qemu-system-x86_64.*@$TARGET" >/dev/null 2>&1
 
-  echo "🗑 Deleting clone: $TARGET ..."
+  echo "🗑 Deleting $TARGET ..."
   rm -rf "$AVD_PATH/$TARGET.avd" "$AVD_PATH/$TARGET.ini"
   echo "✅ Clone deleted."
 }
@@ -184,13 +253,15 @@ launch_menu() {
   local i=1
   for EMU in "${EMULATORS[@]}"; do
     echo "  $i) $EMU"
-    i=$((i+1))
+    ((i++))
   done
   echo ""
-  echo "Enter number to launch:"
-  read -r CHOICE
-  local INDEX=$((CHOICE-1))
-  local NAME="${EMULATORS[$INDEX]}"
+  read -p "Enter number to launch (1-${#EMULATORS[@]}): " CHOICE
+  if ! validate_choice "$CHOICE" "${#EMULATORS[@]}"; then
+    echo "❌ Invalid selection."
+    return
+  fi
+  local NAME="${EMULATORS[$((CHOICE-1))]}"
   silent_launch "$NAME"
 }
 
@@ -206,8 +277,7 @@ while true; do
   echo "4) Clear Emulator (Factory Reset + Auto Reboot)"
   echo "5) Exit"
   echo ""
-  echo "Choose an option:"
-  read -r OPT
+  read -p "Choose an option: " OPT
 
   case "$OPT" in
     1) launch_menu ;;
