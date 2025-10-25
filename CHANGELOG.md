@@ -1,5 +1,18 @@
 # 🧾 Changelog
 
+## [v2.6.2] - 2025-10-25
+### Added
+- Localhost-first backend health check (fallback to `10.0.2.2` for emulator bridge)
+- Automatic Docker container health summary (shows `healthy`, `unhealthy`, etc.)
+- Improved backend retry detection and cleaner log output
+- Debian-ready configuration for AMD GPU (RX 550) with `DRI_PRIME` isolation
+
+### Fixed
+- Backend health prompt no longer blocks when API is already online
+- Simplified status handling and suppressed duplicate warnings
+- Streamlined connection logic between Docker backend and Android emulator
+
+
 ## [v2.3.0] - 2025-10-25
 ### Added
 - Emulator isolation using `setsid` (safe Ctrl+C)
