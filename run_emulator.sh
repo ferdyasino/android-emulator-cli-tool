@@ -1,11 +1,12 @@
 #!/bin/bash
 # ==============================================
 # Android Emulator CLI Tool – Debian + AMD GPU
-# Version: 2.1
+# Version: 2.3.0
 # Author: Ferdy
 # ==============================================
 
 AVD_PATH="$HOME/.android/avd"
+VERSION="v2.3.0"
 
 # ---- Environment Fix for Debian + AMD GPUs ----
 export QT_QPA_PLATFORM=xcb
@@ -15,14 +16,24 @@ export ANDROID_EMULATOR_VULKAN=disabled
 export DRI_PRIME=1
 export DRI_DEVICE=/dev/dri/card1
 echo "🎮 Using external GPU device: $DRI_DEVICE"
+echo "🧭 Android Emulator CLI Tool $VERSION by Ferdy"
+
+# ---- Graceful exit on Ctrl+C ----
+cleanup() {
+  echo ""
+  echo "🧹 Cleaning up CLI only (emulator stays running)..."
+  adb kill-server >/dev/null 2>&1
+  echo "👋 Exiting Android Emulator Tool. Goodbye!"
+  exit 0
+}
+trap cleanup SIGINT
 
 # ---- Helper: Wait for emulator boot ----
 wait_for_boot() {
   echo "⌛ Waiting for Android OS to boot..."
   local retries=0
-  local max_retries=30
+  local max_retries=60   # ~120s total wait
 
-  # Pick the first online emulator device
   local device
   device=$(adb devices | grep -E "emulator-[0-9]+" | grep -v offline | head -n1 | awk '{print $1}')
 
@@ -42,7 +53,7 @@ wait_for_boot() {
       return 0
     fi
 
-    # Show a small progress indicator every 5 seconds
+    # Show progress every 10s
     if (( retries % 5 == 0 )); then
       echo "⏳ Waiting... (attempt $retries/$max_retries)"
     fi
@@ -50,7 +61,6 @@ wait_for_boot() {
     ((retries++))
     sleep 2
   done
-
 
   echo "⚠️ Boot check timed out after $((max_retries * 2))s; emulator likely ready."
   return 0
@@ -106,7 +116,7 @@ silent_launch() {
   fi
 
   echo "🚀 Launching: $NAME (External GPU: RX 550)..."
-  nohup emulator @"$NAME" -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
+  nohup setsid emulator @"$NAME" -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
   disown
 
   sleep 8
@@ -122,7 +132,7 @@ silent_launch() {
 silent_launch_clone() {
   local NAME="$1"
   echo "🚀 Launching clone: $NAME (External GPU: RX 550)..."
-  nohup emulator @"$NAME" -read-only -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
+  nohup setsid emulator @"$NAME" -read-only -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
   disown
 
   sleep 8
@@ -155,10 +165,10 @@ clear_and_reboot() {
   pkill -f "qemu-system-x86_64.*@$NAME" >/dev/null 2>&1
 
   echo "🧼 Wiping user data..."
-  emulator @"$NAME" -wipe-data -no-snapshot -no-boot-anim -accel on -gpu host >/dev/null 2>&1 &
+  setsid emulator @"$NAME" -wipe-data -no-snapshot -no-boot-anim -accel on -gpu host >/dev/null 2>&1 &
   sleep 10
   echo "♻️ Rebooting..."
-  nohup emulator @"$NAME" -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
+  nohup setsid emulator @"$NAME" -accel on -gpu host -no-snapshot >/dev/null 2>&1 &
   disown
   adb_connect_emulator
   wait_for_boot
@@ -246,6 +256,19 @@ delete_clone() {
   echo "✅ Clone deleted."
 }
 
+# ---- Check GPU Renderer ----
+check_gpu_renderer() {
+  echo "==============================="
+  echo "   GPU / RENDERER INFORMATION  "
+  echo "==============================="
+  echo "💻 Host OpenGL:"
+  glxinfo | grep "OpenGL renderer"
+  echo ""
+  echo "📱 Emulator GLES:"
+  adb shell dumpsys SurfaceFlinger | grep GLES
+  echo "==============================="
+}
+
 # ---- Launch Emulator ----
 launch_menu() {
   list_avds
@@ -271,13 +294,14 @@ launch_menu() {
 while true; do
   echo ""
   echo "==============================="
-  echo "   ANDROID EMULATOR TOOL (v2.1)"
+  echo "   ANDROID EMULATOR TOOL $VERSION"
   echo "==============================="
   echo "1) Launch Emulator"
   echo "2) Clone Emulator (create & launch)"
   echo "3) Delete Clone(s)"
   echo "4) Clear Emulator (Factory Reset + Auto Reboot)"
-  echo "5) Exit" 
+  echo "5) Check GPU Renderer"
+  echo "6) Exit"
   echo ""
   read -p "Choose an option: " OPT
 
@@ -286,7 +310,8 @@ while true; do
     2) clone_avd ;;
     3) delete_clone ;;
     4) clear_and_reboot ;;
-    5) echo "👋 Exiting..."; exit 0 ;;
+    5) check_gpu_renderer ;;
+    6) cleanup ;;
     *) echo "❌ Invalid option." ;;
   esac
 done
