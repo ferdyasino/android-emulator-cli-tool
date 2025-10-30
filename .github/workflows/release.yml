@@ -9,6 +9,8 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # ✅ allows creating/updating releases
 
     steps:
       - name: 🧩 Checkout repository
@@ -34,6 +36,6 @@ jobs:
           name: Android Emulator CLI Tool ${{ steps.version.outputs.version }}
           body_path: RELEASE_NOTES.md
           files: |
-            emulator-tool.sh
+            run_emulator.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
