@@ -1,0 +1,39 @@
+name: 🚀 Auto Release Emulator Tool
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧮 Extract version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: 📝 Generate release notes from CHANGELOG.md
+        id: changelog
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          echo "Extracting changelog for $version"
+          awk "/## \\[$version\\]/,/^---/" CHANGELOG.md | sed 's/^## //' > RELEASE_NOTES.md || echo "No changelog found" > RELEASE_NOTES.md
+          echo "✅ RELEASE_NOTES.md generated:"
+          cat RELEASE_NOTES.md
+
+      - name: 🧾 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Android Emulator CLI Tool ${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            emulator-tool.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
