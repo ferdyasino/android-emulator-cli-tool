@@ -121,10 +121,10 @@ Automatically checks for:
 
 | Action | GIF |
 |--------|-----|
-| 🧼 Clear & Reboot | ![clear&reboot](./clear%26reboot.gif) |
-| 🧬 Clone Emulator | ![clone](./clone.gif) |
-| 🗑 Delete Clone | ![delete](./delete.gif) |
-| ▶️ Launch Emulator | ![launch](./launch.gif) |
+| 🧼 Clear & Reboot | ![clear_reboot](./examples/clear_reboot.gif) |
+| 🧬 Clone Emulator | ![clone](./examples/clone.gif) |
+| 🗑 Delete Clone | ![delete](./examples/delete.gif) |
+| ▶️ Launch Emulator | ![launch](./examples/launch.gif) |
 
 ---
 
