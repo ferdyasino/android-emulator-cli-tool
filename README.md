@@ -121,7 +121,7 @@ Automatically checks for:
 
 | Action | GIF |
 |--------|-----|
-| 🧼 Clear & Reboot | ![clear&reboot](./clear&reboot.gif) |
+| 🧼 Clear & Reboot | ![clear&reboot](./clear%26reboot.gif) |
 | 🧬 Clone Emulator | ![clone](./clone.gif) |
 | 🗑 Delete Clone | ![delete](./delete.gif) |
 | ▶️ Launch Emulator | ![launch](./launch.gif) |
