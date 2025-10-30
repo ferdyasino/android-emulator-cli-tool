@@ -1,12 +1,12 @@
 #!/bin/bash
 # ==============================================
 # Android Emulator CLI Tool – Debian + AMD GPU
-# Version: 2.6.2
+# Version: 2.6.3
 # Author: Ferdy
 # ==============================================
 
 AVD_PATH="$HOME/.android/avd"
-VERSION="v2.6.2"
+VERSION="v2.6.3"
 
 # ---- Environment Fix for Debian + AMD GPUs ----
 export QT_QPA_PLATFORM=xcb
@@ -28,35 +28,80 @@ cleanup() {
 }
 trap cleanup SIGINT
 
-# ---- Backend Connectivity Check (Docker API) ----
+# ---- Global + Local Backend Health Scanner ----
 check_backend() {
-  local api_url_local="http://localhost:8081/health"
-  local api_url_emu="http://10.0.2.2:8081/health"
-
   echo ""
-  echo "🔍 Checking backend availability at $api_url_local ..."
+  echo "🌐 Global + Local Backend Scanner"
+  echo "==============================="
 
-  # Try localhost first
-  http_code=$(curl -s --noproxy "*" -o /tmp/health.txt -w "%{http_code}" "$api_url_local" || echo 000)
-  if [ "$http_code" != "200" ]; then
-    echo "⚠️ Localhost unreachable, retrying via emulator bridge ($api_url_emu)..."
-    http_code=$(curl -s --noproxy "*" -o /tmp/health.txt -w "%{http_code}" "$api_url_emu" || echo 000)
-  fi
-
-  if [ "$http_code" = "200" ] && grep -Eiq "ok|success|healthy" /tmp/health.txt; then
-    echo "✅ Backend is online."
+  # 🐳 Auto-detect published Docker ports
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    ports=($(docker ps --format "{{.Ports}}" \
+      | grep -oP "(?<=:)\d+(?=-)" \
+      | sort -u))
+    if [ ${#ports[@]} -gt 0 ]; then
+      echo "🐳 Detected exposed Docker ports: ${ports[*]}"
+    else
+      echo "⚠️ No exposed Docker ports detected."
+      ports=()
+    fi
   else
-    echo "❌ Backend not responding (HTTP $http_code)"
-    echo "   Response: $(cat /tmp/health.txt)"
-    echo "⚠️ You may need to run: run-monitor"
-    read -p "Proceed anyway? (y/N): " choice
-    [[ "$choice" =~ ^[Yy]$ ]] || exit 1
+    echo "⚠️ Docker not available or not running."
+    ports=()
+  fi
+
+  # ➕ Add common local dev ports if not already in list
+  local common_ports=(3000 3001 5173 8080 8081 8022 9090 5000)
+  for p in "${common_ports[@]}"; do
+    [[ " ${ports[*]} " =~ " $p " ]] || ports+=("$p")
+  done
+
+  echo "🧩 Scanning ports: ${ports[*]}"
+  local found=0
+  local total_checked=0
+
+  for port in "${ports[@]}"; do
+    for path in "/health" "/api/health"; do
+      local url="http://localhost:${port}${path}"
+      local code response
+      code=$(curl -s --connect-timeout 2 -o /tmp/scan.txt -w "%{http_code}" "$url" || echo 000)
+      response=$(< /tmp/scan.txt)
+      ((total_checked++))
+
+      if [ "$code" = "200" ] && grep -Eiq "ok|success|healthy" <<<"$response"; then
+        echo "✅ Healthy → $url"
+        ((found++))
+        break
+      elif [ "$code" = "000" ]; then
+        continue
+      elif [ "$code" = "404" ]; then
+        echo "⚠️ $url → 404 (no health endpoint)"
+      else
+        echo "❌ $url → HTTP $code"
+      fi
+    done
+  done
+
+  echo "==============================="
+  if [ "$found" -gt 0 ]; then
+    echo "📊 $found healthy endpoint(s) detected across ${#ports[@]} port(s)."
+  else
+    echo "🚫 No healthy services detected (checked $total_checked URLs)."
   fi
 
   echo ""
-  echo "🧱 Checking running Docker containers..."
-  docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "commhub_postgres|sms_voip_api|admin_portal" || \
-    echo "⚠️ No relevant containers running."
+  echo "🐳 Running containers overview:"
+  if command -v docker >/dev/null 2>&1; then
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" \
+      | grep -E "commhub|sms_voip|admin_portal|drachtio|postgres" \
+      || echo "⚠️ No relevant containers running."
+  else
+    echo "⚠️ Docker command not found."
+  fi
+
+  echo ""
+  echo "🧭 Proceeding with emulator launch (non-blocking mode)..."
+  echo ""
 }
 
 # ---- Helper: Wait for emulator boot ----
